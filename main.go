@@ -1,31 +1,46 @@
 package main
 
 import (
-	"gitlab.com/MikeTTh/env"
-	"gopkg.in/telebot.v3"
+	"github.com/marcsello/marcsellocorp-bot/api"
+	"github.com/marcsello/marcsellocorp-bot/db"
+	"github.com/marcsello/marcsellocorp-bot/telegram"
 	"log"
+	"sync"
 )
 
 func main() {
 	log.Println("Staring Marcsello Corp. Telegram Bot...")
 
-	bot, err := telebot.NewBot(telebot.Settings{
-		Token: env.StringOrPanic("TELEGRAM_TOKEN"),
-		Poller: &telebot.Webhook{
-			Listen: ":8080",
-			Endpoint: &telebot.WebhookEndpoint{
-				PublicURL: env.StringOrPanic("PUBLIC_URL"),
-			},
-		},
-	})
+	log.Println("Connecting to DB...")
+	db.Connect()
 
+	log.Println("Init BOT...")
+	bot, err := telegram.InitTelegramBot()
 	if err != nil {
 		panic(err)
 	}
 
-	bot.Handle("/id", cmdId)
-	bot.Handle("/start", cmdStart)
+	log.Println("Init API...")
+	apiRun, err := api.InitApi(bot)
+	if err != nil {
+		panic(err)
+	}
 
-	log.Println("Everything is ready! Listening for commands!")
-	bot.Start()
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	go func() {
+		log.Println("Staring API...")
+		apiRun()
+		wg.Done()
+	}()
+
+	go func() {
+		log.Println("Staring BOT...")
+		bot.Start()
+		wg.Done()
+	}()
+
+	wg.Wait()
+
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/marcsello/marcsellocorp-bot/utils"
+	"sync"
 	"time"
 )
 
@@ -15,9 +16,10 @@ const (
 )
 
 type NewQuestionTx struct {
-	randomId string
-	data     QuestionData
-	ctx      context.Context
+	randomId  string
+	data      QuestionData
+	dataMutex sync.Mutex
+	ctx       context.Context
 }
 
 func randomIdToKey(randomId string) string {
@@ -25,6 +27,9 @@ func randomIdToKey(randomId string) string {
 }
 
 func (q *NewQuestionTx) Close() error {
+	q.dataMutex.Lock()
+	defer q.dataMutex.Unlock()
+
 	if q.ctx.Err() != nil {
 		return q.ctx.Err() // context cancelled probably
 	}
@@ -42,6 +47,8 @@ func (q *NewQuestionTx) Close() error {
 }
 
 func (q *NewQuestionTx) AddRelatedMessage(message StoredMessage) {
+	q.dataMutex.Lock()
+	defer q.dataMutex.Unlock()
 	q.data.RelatedMessages = append(q.data.RelatedMessages, message)
 }
 
@@ -92,9 +99,10 @@ func BeginNewQuestion(ctx context.Context, sourceToken uint) (NewQuestionTx, err
 	}
 
 	return NewQuestionTx{
-		randomId: newId,
-		data:     data,
-		ctx:      ctx,
+		randomId:  newId,
+		data:      data,
+		dataMutex: sync.Mutex{},
+		ctx:       ctx,
 	}, nil
 
 }

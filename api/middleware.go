@@ -1,10 +1,10 @@
 package api
 
 import (
-	"crypto/sha256"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/marcsello/marcsellocorp-bot/db"
+	"github.com/marcsello/marcsellocorp-bot/utils"
 	"gorm.io/gorm"
 	"net/http"
 	"strings"
@@ -37,11 +37,7 @@ func requireValidTokenMiddleware(ctx *gin.Context) {
 		return
 	}
 
-	h := sha256.New()
-	h.Write([]byte(key))
-	hashBytes := h.Sum(nil)
-
-	token, err := db.GetAndUpdateTokenByHash(hashBytes)
+	token, err := db.GetAndUpdateTokenByHash(utils.TokenHash(key))
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			ctx.AbortWithStatus(http.StatusUnauthorized)

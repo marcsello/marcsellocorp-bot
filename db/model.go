@@ -48,15 +48,15 @@ func (u *User) Greet() string {
 type Token struct {
 	gorm.Model
 
-	Name string `json:"name" gorm:"type:varchar(48) not null"`
+	Name string `gorm:"type:varchar(48) not null"`
 
-	LastUsed *time.Time `json:"last_used"`
+	LastUsed *time.Time `gorm:"not null"`
 
-	TokenHash []byte `json:"-"`
+	TokenHash []byte `json:"-" gorm:"not null; unique"`
 
-	AllowedChannels []*Channel `json:"allowed_channels"`
+	AllowedChannels []*Channel `gorm:"many2many:token_channels;"`
 
 	// quick and dirty
-	CapNotify   bool `json:"cap_notify"`
-	CapQuestion bool `json:"cap_question"`
+	CapNotify   bool
+	CapQuestion bool
 }

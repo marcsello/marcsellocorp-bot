@@ -41,8 +41,8 @@ func (q *NewQuestionTx) Close() error {
 	return result.Err()
 }
 
-func (q *NewQuestionTx) AddRelatedMessageId(id int) {
-	q.data.RelatedMessages = append(q.data.RelatedMessages, id)
+func (q *NewQuestionTx) AddRelatedMessage(message StoredMessage) {
+	q.data.RelatedMessages = append(q.data.RelatedMessages, message)
 }
 
 func (q *NewQuestionTx) key() string {
@@ -59,8 +59,8 @@ func BeginNewQuestion(ctx context.Context, sourceToken uint) (NewQuestionTx, err
 		AnsweredAt:      nil,
 		AnswererID:      nil,
 		AnswerData:      nil,
-		RelatedMessages: make([]int, 0),
-		SourceToken:     sourceToken,
+		RelatedMessages: make([]StoredMessage, 0),
+		SourceTokenID:   sourceToken,
 		Ready:           false, // <- messages are being sent out
 	}
 
@@ -119,7 +119,7 @@ func GetQuestionData(ctx context.Context, randomId string) (*QuestionData, error
 	return &data, nil
 }
 
-func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answerData string) error {
+func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answerData string) (*QuestionData, error) {
 	key := randomIdToKey(randomId)
 	getResult := redisClient.Get(ctx, key)
 
@@ -127,18 +127,18 @@ func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answ
 	var err error
 	dataBytes, err = getResult.Bytes()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var data QuestionData
 	err = json.Unmarshal(dataBytes, &data)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if !data.Ready {
 		// TODO: eh?
-		return fmt.Errorf("question not delivered to all recipients, please wait")
+		return nil, fmt.Errorf("question not delivered to all recipients, please wait")
 	}
 
 	data.AnswererID = &answererID
@@ -147,7 +147,10 @@ func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answ
 	data.AnsweredAt = &now
 
 	dataBytes, err = json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
 
 	setResult := redisClient.Set(ctx, key, dataBytes, answeredExpire)
-	return setResult.Err()
+	return &data, setResult.Err()
 }

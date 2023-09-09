@@ -52,7 +52,7 @@ func handleNotify(ctx *gin.Context) {
 	delivered := false
 	for _, sub := range targetChannel.Subscribers {
 
-		_, err = telegram.Send(sub.ID, msg)
+		_, err = telegram.GetBot().Send(&telebot.User{ID: sub.ID}, msg, telebot.ModeDefault)
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
@@ -130,17 +130,17 @@ func handleNewQuestion(ctx *gin.Context) {
 	}
 	markup.Inline(rows...)
 
-	// TODO: compile message
+	msg := fmt.Sprintf("[%s -> %s]\n\n%s", token.Name, targetChannel.Name, req.Text)
 
 	for _, sub := range targetChannel.Subscribers {
-		var mID int
-		mID, err = telegram.Send(sub.ID) // TODO?????
+		var m *telebot.Message
+		m, err = telegram.GetBot().Send(&telebot.User{ID: sub.ID}, msg, telebot.ModeDefault, markup)
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
 		}
 
-		newQuestionTx.AddRelatedMessageId(mID)
+		newQuestionTx.AddRelatedMessage(memdb.StoredMessage{MessageID: m.ID, ChatID: m.Chat.ID})
 	}
 
 	err = newQuestionTx.Close()
@@ -175,7 +175,7 @@ func handleQuestionAnswer(ctx *gin.Context) {
 		return
 	}
 
-	if q == nil {
+	if q == nil || q.SourceTokenID != token.ID {
 		ctx.Status(http.StatusNotFound)
 		return
 	}

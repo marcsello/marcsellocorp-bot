@@ -22,11 +22,11 @@ func InitTelegramBot() (func(), error) {
 		return nil, err
 	}
 
-	setupCommands(telegramBot)
+	setupHandlers(telegramBot)
 
 	runFunc := func() {
 		telegramBot.Start()
 	}
-	
+
 	return runFunc, nil
 }

@@ -1,11 +1,16 @@
 package telegram
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/marcsello/marcsellocorp-bot/common"
 	"github.com/marcsello/marcsellocorp-bot/db"
+	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"gopkg.in/telebot.v3"
 	"gorm.io/gorm"
+	"strings"
 )
 
 func cmdStart(ctx telebot.Context) error {
@@ -108,7 +113,62 @@ func cmdList(ctx telebot.Context) error {
 
 }
 
-func setupCommands(bot *telebot.Bot) {
+func handleCallback(ctx telebot.Context) error {
+	q := ctx.Callback()
+
+	if q.Unique != common.CallbackIDQuestion {
+		return nil
+	}
+
+	parts := strings.SplitN(strings.TrimSpace(q.Data), "|", 3)
+
+	if len(parts) != 2 { // first is the unique part
+		return fmt.Errorf("invalid or no data passed")
+	}
+
+	data := parts[1]
+
+	var cd common.CallbackData
+	err := json.Unmarshal([]byte(data), &cd)
+	if err != nil {
+		return err
+	}
+
+	var questionData *memdb.QuestionData
+	questionData, err = memdb.AnswerQuestion(context.TODO(), cd.RandomID, ctx.Sender().ID, cd.Data)
+	if err != nil {
+		return err
+	}
+
+	// Update sent messages
+
+	username := "Anon"
+	if ctx.Sender().Username != "" {
+		username = "@" + ctx.Sender().Username
+	} else if ctx.Sender().FirstName != "" {
+		username = ctx.Sender().FirstName
+	}
+
+	answerLabel := ctx.Text()
+
+	replyMsg := fmt.Sprintf("Answered by %s:\n%s", username, answerLabel)
+
+	for _, sMsg := range questionData.RelatedMessages {
+		var msg *telebot.Message
+		msg, err = telegramBot.EditReplyMarkup(sMsg, nil) // remove buttons
+		if err != nil {
+			return err
+		}
+		_, err = telegramBot.Reply(msg, replyMsg, telebot.ModeDefault)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func setupHandlers(bot *telebot.Bot) {
 	bot.Handle("/start", cmdStart)
 	bot.Handle("/id", cmdId)
 	bot.Handle("/whoami", cmdWhoami)
@@ -119,4 +179,6 @@ func setupCommands(bot *telebot.Bot) {
 	privateAuthOnly.Handle("/subscribe", cmdSubscribe)
 	privateAuthOnly.Handle("/unsubscribe", cmdUnsubscribe)
 	privateAuthOnly.Handle("/list", cmdList)
+
+	bot.Handle(telebot.OnCallback, handleCallback)
 }

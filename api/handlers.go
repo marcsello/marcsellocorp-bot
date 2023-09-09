@@ -1,12 +1,14 @@
 package api
 
 import (
-	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/marcsello/marcsellocorp-bot/common"
 	"github.com/marcsello/marcsellocorp-bot/db"
+	"github.com/marcsello/marcsellocorp-bot/memdb"
+	"github.com/marcsello/marcsellocorp-bot/telegram"
 	"gopkg.in/telebot.v3"
-	"math/big"
 	"net/http"
 )
 
@@ -17,8 +19,8 @@ func handleNotify(ctx *gin.Context) {
 		return
 	}
 
-	if !token.NotifyAllowed {
-		ctx.JSON(http.StatusForbidden, gin.H{"reason": "method disallowed"})
+	if !token.CapNotify {
+		ctx.JSON(http.StatusForbidden, gin.H{"reason": "capability disallowed"})
 		return
 	}
 
@@ -50,7 +52,7 @@ func handleNotify(ctx *gin.Context) {
 	delivered := false
 	for _, sub := range targetChannel.Subscribers {
 
-		_, err = telegramBot.Send(&telebot.User{ID: sub.ID}, msg, telebot.ModeDefault)
+		_, err = telegram.Send(sub.ID, msg)
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
@@ -64,28 +66,14 @@ func handleNotify(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, resp)
 }
 
-func generateRandomString(n int) (string, error) {
-	const letters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-"
-	ret := make([]byte, n)
-	for i := 0; i < n; i++ {
-		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letters))))
-		if err != nil {
-			return "", err
-		}
-		ret[i] = letters[num.Int64()]
-	}
-
-	return string(ret), nil
-}
-
 func handleNewQuestion(ctx *gin.Context) {
 	token := getTokenFromContext(ctx)
 	if token != nil {
 		handleInternalError(ctx, fmt.Errorf("invalid token"))
 		return
 	}
-	if !token.QuestionAllowed {
-		ctx.JSON(http.StatusForbidden, gin.H{"reason": "method disallowed"})
+	if !token.CapQuestion {
+		ctx.JSON(http.StatusForbidden, gin.H{"reason": "capability disallowed"})
 		return
 	}
 
@@ -117,35 +105,55 @@ func handleNewQuestion(ctx *gin.Context) {
 		return
 	}
 
-	var randomID string
-	randomID, err = generateRandomString(64)
-
-	q := &db.PendingQuestion{
-		RandomID: randomID,
-		Source:   token,
-	}
-	q, err = db.NewPendingQuestion(q)
+	var newQuestionTx memdb.NewQuestionTx
+	newQuestionTx, err = memdb.BeginNewQuestion(ctx, token.ID)
 	if err != nil {
 		handleInternalError(ctx, err)
 		return
 	}
 
-	msg := "" //TODO
-	messageIDs := make([]int, len(targetChannel.Subscribers))
-	for i, sub := range targetChannel.Subscribers {
-
-		var m *telebot.Message
-		m, err = telegramBot.Send(&telebot.User{ID: sub.ID}, msg, telebot.ModeDefault)
+	// compile message
+	markup := &telebot.ReplyMarkup{}
+	rows := make([]telebot.Row, len(req.Options))
+	for i, op := range req.Options {
+		var data []byte
+		data, err = json.Marshal(common.CallbackData{
+			RandomID: newQuestionTx.RandomID(),
+			Data:     op.Data,
+		})
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
 		}
 
-		messageIDs[i] = m.ID
+		rows[i] = markup.Row(markup.Data(op.Label, common.CallbackIDQuestion, string(data)))
+	}
+	markup.Inline(rows...)
+
+	// TODO: compile message
+
+	for _, sub := range targetChannel.Subscribers {
+		var mID int
+		mID, err = telegram.Send(sub.ID) // TODO?????
+		if err != nil {
+			handleInternalError(ctx, err)
+			return
+		}
+
+		newQuestionTx.AddRelatedMessageId(mID)
 	}
 
-	// TODO: Store message IDs in DB
+	err = newQuestionTx.Close()
+	if err != nil {
+		handleInternalError(ctx, err)
+		return
+	}
 
+	resp := QuestionResponse{
+		ID: newQuestionTx.RandomID(),
+	}
+
+	ctx.JSON(http.StatusCreated, resp)
 }
 
 func handleQuestionAnswer(ctx *gin.Context) {
@@ -154,11 +162,47 @@ func handleQuestionAnswer(ctx *gin.Context) {
 		handleInternalError(ctx, fmt.Errorf("invalid token"))
 		return
 	}
-	if !token.QuestionAllowed {
-		ctx.JSON(http.StatusForbidden, gin.H{"reason": "method disallowed"})
+	if !token.CapQuestion {
+		ctx.JSON(http.StatusForbidden, gin.H{"reason": "capability disallowed"})
 		return
 	}
 
-	// TODO
+	id := ctx.Param("id")
 
+	q, err := memdb.GetQuestionData(ctx, id)
+	if err != nil {
+		handleInternalError(ctx, err)
+		return
+	}
+
+	if q == nil {
+		ctx.Status(http.StatusNotFound)
+		return
+	}
+
+	resp := QuestionResponse{
+		ID:     id,
+		Answer: nil,
+	}
+
+	// Check if question is answered
+	if q.AnswerData != nil && q.AnsweredAt != nil && q.AnswererID != nil {
+
+		// get answerer data from db
+		var user *db.User
+		user, err = db.GetUserById(*q.AnswererID)
+		if err != nil {
+			handleInternalError(ctx, err)
+			return
+		}
+
+		// fill answerer in response
+		resp.Answer = &QuestionAnswer{
+			Data:       *q.AnswerData,
+			AnsweredAt: *q.AnsweredAt,
+			AnsweredBy: UserToUserRepr(*user),
+		}
+	}
+
+	ctx.JSON(http.StatusOK, resp)
 }

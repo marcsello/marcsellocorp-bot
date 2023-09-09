@@ -30,7 +30,7 @@ func Connect() (err error) {
 	sqlDB.SetMaxIdleConns(5)
 	sqlDB.SetMaxOpenConns(10)
 
-	err = db.AutoMigrate(&Channel{}, &User{}, &PendingQuestion{}, &Token{})
+	err = db.AutoMigrate(&Channel{}, &User{}, &Token{})
 	if err != nil {
 		return
 	}

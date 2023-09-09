@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Notify
+
 type NotifyRequest struct {
 	Text    string `json:"text"`
 	Channel string `json:"channel"`
@@ -12,6 +14,26 @@ type NotifyRequest struct {
 
 type NotifyResponse struct {
 	DeliveredToAnyone bool `json:"delivered_to_anyone"`
+}
+
+// Question
+
+type UserRepr struct {
+	ID        int64  `json:"id"` // This must be a signed int, because telegram assign negative id to groups
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+	PhotoUrl  string `json:"photo_url"`
+}
+
+func UserToUserRepr(u db.User) UserRepr {
+	return UserRepr{
+		ID:        u.ID,
+		FirstName: u.FirstName,
+		LastName:  u.LastName,
+		Username:  u.Username,
+		PhotoUrl:  u.PhotoUrl,
+	}
 }
 
 type QuestionOption struct {
@@ -26,10 +48,10 @@ type QuestionRequest struct {
 	Options []QuestionOption `json:"options"`
 }
 
-type QuestionAnswer struct {
+type QuestionAnswer struct { // part of QuestionResponse
 	Data       string    `json:"data"`
 	AnsweredAt time.Time `json:"at"`
-	AnsweredBy db.User   `json:"by"`
+	AnsweredBy UserRepr  `json:"by"`
 }
 
 type QuestionResponse struct {

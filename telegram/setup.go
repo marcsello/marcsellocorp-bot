@@ -5,8 +5,11 @@ import (
 	"gopkg.in/telebot.v3"
 )
 
-func InitTelegramBot() (*telebot.Bot, error) {
-	bot, err := telebot.NewBot(telebot.Settings{
+var telegramBot *telebot.Bot
+
+func InitTelegramBot() (func(), error) {
+	var err error
+	telegramBot, err = telebot.NewBot(telebot.Settings{
 		Token: env.StringOrPanic("TELEGRAM_TOKEN"),
 		Poller: &telebot.Webhook{
 			Listen: env.String("WEBHOOK_BIND", ":8080"),
@@ -19,6 +22,11 @@ func InitTelegramBot() (*telebot.Bot, error) {
 		return nil, err
 	}
 
-	setupCommands(bot)
-	return bot, nil
+	setupCommands(telegramBot)
+
+	runFunc := func() {
+		telegramBot.Start()
+	}
+	
+	return runFunc, nil
 }

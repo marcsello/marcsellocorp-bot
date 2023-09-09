@@ -45,20 +45,6 @@ func (u *User) Greet() string {
 
 }
 
-type PendingQuestion struct { // should be stored short-term only, the place for inactive questions is the audit log
-	gorm.Model
-
-	RandomID string `gorm:"type:varchar(64) not null;unique"` // This will be used on the API instead of the internal ID
-
-	AnsweredAt *time.Time
-	Answerer   *User
-	Answer     *string
-
-	RelatedMessages []int // so they can all be deleted at once
-
-	Source *Token // only the bearer of the same token may read the response
-}
-
 type Token struct {
 	gorm.Model
 
@@ -71,6 +57,6 @@ type Token struct {
 	AllowedChannels []*Channel `json:"allowed_channels"`
 
 	// quick and dirty
-	NotifyAllowed   bool `json:"notify_allowed"`
-	QuestionAllowed bool `json:"question_allowed"`
+	CapNotify   bool `json:"cap_notify"`
+	CapQuestion bool `json:"cap_question"`
 }

@@ -3,13 +3,9 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"gitlab.com/MikeTTh/env"
-	"gopkg.in/telebot.v3"
 )
 
-var telegramBot *telebot.Bot // global meme
-
-func InitApi(bot *telebot.Bot) (func(), error) {
-	telegramBot = bot
+func InitApi() (func(), error) {
 
 	router := gin.New()
 	router.Use(requireValidTokenMiddleware)

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/marcsello/marcsellocorp-bot/api"
 	"github.com/marcsello/marcsellocorp-bot/db"
+	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"github.com/marcsello/marcsellocorp-bot/telegram"
 	"log"
 	"sync"
@@ -12,16 +13,25 @@ func main() {
 	log.Println("Staring Marcsello Corp. Telegram Bot...")
 
 	log.Println("Connecting to DB...")
-	db.Connect()
+	err := db.Connect()
+	if err != nil {
+		panic(err)
+	}
+
+	log.Println("Connecting to Redis...")
+	err = memdb.InitRedisConnection()
+	if err != nil {
+		panic(err)
+	}
 
 	log.Println("Init BOT...")
-	bot, err := telegram.InitTelegramBot()
+	botRun, err := telegram.InitTelegramBot()
 	if err != nil {
 		panic(err)
 	}
 
 	log.Println("Init API...")
-	apiRun, err := api.InitApi(bot)
+	apiRun, err := api.InitApi()
 	if err != nil {
 		panic(err)
 	}
@@ -37,7 +47,7 @@ func main() {
 
 	go func() {
 		log.Println("Staring BOT...")
-		bot.Start()
+		botRun()
 		wg.Done()
 	}()
 

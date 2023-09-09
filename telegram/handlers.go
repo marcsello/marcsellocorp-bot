@@ -58,6 +58,12 @@ func subscriptionChanging(ctx telebot.Context, state bool) error {
 	chName := ctx.Args()[0]
 
 	ch, err := db.GetChannelByName(chName)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ctx.Reply("channel not found", telebot.ModeDefault)
+		}
+		return err
+	}
 
 	err = db.ChangeSubscription(ctx.Chat().ID, ch.ID, state)
 	if err != nil {

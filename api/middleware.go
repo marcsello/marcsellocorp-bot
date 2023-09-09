@@ -20,13 +20,13 @@ func getTokenFromContext(ctx *gin.Context) *db.Token {
 		return nil
 	}
 
-	t, ok := tInt.(db.Token)
+	t, ok := tInt.(*db.Token)
 
 	if !ok {
 		return nil
 	}
 
-	return &t
+	return t
 }
 
 func requireValidTokenMiddleware(ctx *gin.Context) {

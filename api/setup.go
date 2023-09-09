@@ -7,14 +7,13 @@ import (
 
 func InitApi(debug bool) (func(), error) {
 
-	router := gin.New()
-
 	if debug {
 		gin.SetMode(gin.DebugMode)
 	} else {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	router := gin.New()
 	router.Use(requireValidTokenMiddleware)
 	// this is RPC style instead of REST style
 	router.POST("/notify", handleNotify)

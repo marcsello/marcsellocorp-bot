@@ -13,11 +13,11 @@ func getUserFromContext(ctx telebot.Context) *db.User {
 		return nil
 	}
 
-	u, ok := uInt.(db.User)
-	
+	u, ok := uInt.(*db.User)
+
 	if !ok {
 		return nil
 	}
 
-	return &u
+	return u
 }

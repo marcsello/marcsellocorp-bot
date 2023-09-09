@@ -10,7 +10,7 @@ import (
 func privateOnlyMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
 	return func(ctx telebot.Context) error {
 
-		if !ctx.Chat().Private {
+		if ctx.Chat().Type != telebot.ChatPrivate {
 			return ctx.Reply("This command is restricted to private chats!", telebot.ModeDefault)
 		}
 

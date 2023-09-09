@@ -5,12 +5,14 @@ import (
 	"github.com/marcsello/marcsellocorp-bot/db"
 	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"github.com/marcsello/marcsellocorp-bot/telegram"
+	"gitlab.com/MikeTTh/env"
 	"log"
 	"sync"
 )
 
 func main() {
 	log.Println("Staring Marcsello Corp. Telegram Bot...")
+	debug := env.Bool("DEBUG", false)
 
 	log.Println("Connecting to DB...")
 	err := db.Connect()
@@ -31,7 +33,7 @@ func main() {
 	}
 
 	log.Println("Init API...")
-	apiRun, err := api.InitApi()
+	apiRun, err := api.InitApi(debug)
 	if err != nil {
 		panic(err)
 	}

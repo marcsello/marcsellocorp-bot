@@ -25,7 +25,7 @@ func cmdId(ctx telebot.Context) error {
 		ctx.Sender().ID,
 	)
 
-	return ctx.Send(text, telebot.ModeDefault)
+	return ctx.Reply(text, telebot.ModeDefault)
 }
 
 func cmdWhoami(ctx telebot.Context) error {

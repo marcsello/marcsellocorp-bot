@@ -1,6 +1,8 @@
 package db
 
 import (
+	"errors"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 	"time"
 )
@@ -45,14 +47,39 @@ func GetChannelById(id uint) (*Channel, error) {
 	return &channel, result.Error
 }
 
-func ChangeSubscription(userId int64, channelId uint, subscribed bool) error {
+func isPgError(err error, severity, code string) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		return pgErr.Severity == severity && pgErr.Code == code
+	}
+	return false
+}
+
+// ChangeSubscription adds or deletes a subscription, the first return value indicates if anything changed or not
+func ChangeSubscription(userId int64, channelId uint, subscribed bool) (bool, error) {
 	var result *gorm.DB
 	if subscribed {
+
 		result = db.Exec("INSERT INTO subscriptions (user_id, channel_id) VALUES (?, ?)", userId, channelId)
+
+		if result.Error != nil {
+			if isPgError(result.Error, "ERROR", "23505") { // duplicate key
+				return false, nil
+			}
+			return false, result.Error
+		}
+		return true, nil
+
 	} else {
+
 		result = db.Exec("DELETE FROM subscriptions WHERE user_id = ? AND channel_id = ?", userId, channelId)
+
+		if result.Error != nil {
+			return false, result.Error
+		}
+		return result.RowsAffected > 0, nil
+
 	}
-	return result.Error
 }
 
 func GetAndUpdateTokenByHash(tokenHashBytes []byte) (*Token, error) {

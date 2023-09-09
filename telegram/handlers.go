@@ -65,17 +65,25 @@ func subscriptionChanging(ctx telebot.Context, state bool) error {
 		return err
 	}
 
-	err = db.ChangeSubscription(ctx.Chat().ID, ch.ID, state)
+	var changed bool
+	changed, err = db.ChangeSubscription(ctx.Chat().ID, ch.ID, state)
 	if err != nil {
-		// Handle already subscribed/unsubscribed condition
 		return err
 	}
 
 	var msg string
-	if state {
-		msg = "Successfully subscribed to " + chName
+	if changed {
+		if state {
+			msg = "Successfully subscribed to " + chName
+		} else {
+			msg = "Successfully unsubscribed from " + chName
+		}
 	} else {
-		msg = "Successfully unsubscribed from " + chName
+		if state {
+			msg = "Already subscribed to " + chName
+		} else {
+			msg = "Not subscribed to " + chName
+		}
 	}
 
 	return ctx.Reply(msg, telebot.ModeDefault)

@@ -131,19 +131,20 @@ func cmdList(ctx telebot.Context) error {
 func handleCallback(ctx telebot.Context) error {
 	q := ctx.Callback()
 
-	log.Println("BOT: New callback: ", ctx.Sender().ID, " -- u: ", q.Unique, " -- d: ", q.Data)
-
-	if q.Unique != common.CallbackIDQuestion {
-		return nil
-	}
-
-	parts := strings.SplitN(strings.TrimSpace(q.Data), "|", 3)
+	parts := strings.SplitN(strings.TrimSpace(q.Data), "|", 2)
 
 	if len(parts) != 2 { // first is the unique part
 		return fmt.Errorf("invalid or no data passed")
 	}
 
-	data := parts[1]
+	unique := strings.TrimSpace(parts[0])
+	data := strings.TrimSpace(parts[1])
+
+	log.Println("BOT: New callback: ", ctx.Sender().ID, " -- u: ", unique, " -- d: ", data)
+
+	if unique != common.CallbackIDQuestion {
+		return nil
+	}
 
 	var cd common.CallbackData
 	err := json.Unmarshal([]byte(data), &cd)

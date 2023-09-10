@@ -98,8 +98,18 @@ func handleNewQuestion(ctx *gin.Context) {
 		return
 	}
 	for _, op := range req.Options {
-		if op.Label == "" && op.Data == "" {
-			handleUserError(ctx, fmt.Errorf("option must have either label or data defined"))
+		if op.Data == "" {
+			handleUserError(ctx, fmt.Errorf("option data must be defined"))
+			return
+		}
+		if len(op.Data) > 12 {
+			/*
+				>>> len('{"i":"w08slJSreJu2VzVhyzBZYnGMPj7kfEpk","d":""}')
+				47
+				>>> 64-47
+				17
+			*/
+			handleUserError(ctx, fmt.Errorf("max size for data is 12 bytes"))
 			return
 		}
 	}
@@ -137,10 +147,6 @@ func handleNewQuestion(ctx *gin.Context) {
 	rows := make([]telebot.Row, len(req.Options))
 	for i, op := range req.Options {
 
-		data := op.Data
-		if data == "" {
-			data = op.Label
-		}
 		label := op.Label
 		if label == "" {
 			label = op.Data
@@ -149,7 +155,7 @@ func handleNewQuestion(ctx *gin.Context) {
 		var btnData []byte
 		btnData, err = json.Marshal(common.CallbackData{
 			RandomID: newQuestionTx.RandomID(),
-			Data:     data,
+			Data:     op.Data,
 		})
 		if err != nil {
 			handleInternalError(ctx, err)

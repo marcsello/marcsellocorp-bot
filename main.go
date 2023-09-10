@@ -27,7 +27,7 @@ func main() {
 	}
 
 	log.Println("Init BOT...")
-	botRun, err := telegram.InitTelegramBot()
+	botRun, err := telegram.InitTelegramBot(debug)
 	if err != nil {
 		panic(err)
 	}

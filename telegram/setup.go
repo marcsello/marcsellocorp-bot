@@ -7,7 +7,7 @@ import (
 
 var telegramBot *telebot.Bot
 
-func InitTelegramBot() (func(), error) {
+func InitTelegramBot(debug bool) (func(), error) {
 	var err error
 	telegramBot, err = telebot.NewBot(telebot.Settings{
 		Token: env.StringOrPanic("TELEGRAM_TOKEN"),
@@ -17,6 +17,7 @@ func InitTelegramBot() (func(), error) {
 				PublicURL: env.StringOrPanic("WEBHOOK_PUBLIC_URL"),
 			},
 		},
+		Verbose: debug,
 	})
 	if err != nil {
 		return nil, err

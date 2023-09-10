@@ -9,6 +9,7 @@ import (
 	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"github.com/marcsello/marcsellocorp-bot/telegram"
 	"gopkg.in/telebot.v3"
+	"log"
 	"net/http"
 )
 
@@ -67,6 +68,7 @@ func handleNotify(ctx *gin.Context) {
 
 	resp := NotifyResponse{DeliveredToAnyone: delivered}
 
+	log.Println("API: New notification created: ", token.Name, " -- ch: ", targetChannel.Name)
 	ctx.JSON(http.StatusOK, resp)
 }
 
@@ -181,6 +183,7 @@ func handleNewQuestion(ctx *gin.Context) {
 		ID: newQuestionTx.RandomID(),
 	}
 
+	log.Println("API: New question created: ", token.Name, " -- ch: ", targetChannel.Name, " -- op:", len(req.Options))
 	ctx.JSON(http.StatusCreated, resp)
 }
 

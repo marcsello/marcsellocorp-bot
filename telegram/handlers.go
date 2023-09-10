@@ -10,6 +10,7 @@ import (
 	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"gopkg.in/telebot.v3"
 	"gorm.io/gorm"
+	"log"
 	"strings"
 )
 
@@ -129,6 +130,8 @@ func cmdList(ctx telebot.Context) error {
 
 func handleCallback(ctx telebot.Context) error {
 	q := ctx.Callback()
+
+	log.Println("BOT: New callback: ", ctx.Sender().ID, " -- u: ", q.Unique, " -- d: ", q.Data)
 
 	if q.Unique != common.CallbackIDQuestion {
 		return nil

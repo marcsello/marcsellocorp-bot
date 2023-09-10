@@ -14,7 +14,7 @@ import (
 
 func handleNotify(ctx *gin.Context) {
 	token := getTokenFromContext(ctx)
-	if token != nil {
+	if token == nil {
 		handleInternalError(ctx, fmt.Errorf("invalid token"))
 		return
 	}
@@ -68,7 +68,7 @@ func handleNotify(ctx *gin.Context) {
 
 func handleNewQuestion(ctx *gin.Context) {
 	token := getTokenFromContext(ctx)
-	if token != nil {
+	if token == nil {
 		handleInternalError(ctx, fmt.Errorf("invalid token"))
 		return
 	}
@@ -158,7 +158,7 @@ func handleNewQuestion(ctx *gin.Context) {
 
 func handleQuestionAnswer(ctx *gin.Context) {
 	token := getTokenFromContext(ctx)
-	if token != nil {
+	if token == nil {
 		handleInternalError(ctx, fmt.Errorf("invalid token"))
 		return
 	}

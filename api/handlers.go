@@ -88,12 +88,18 @@ func handleNewQuestion(ctx *gin.Context) {
 		return
 	}
 	if len(req.Options) == 0 {
-		handleUserError(ctx, fmt.Errorf("no questions provided"))
+		handleUserError(ctx, fmt.Errorf("no options provided"))
 		return
 	}
 	if req.Text == "" {
 		handleUserError(ctx, fmt.Errorf("text may not be empty"))
 		return
+	}
+	for _, op := range req.Options {
+		if op.Label == "" && op.Data == "" {
+			handleUserError(ctx, fmt.Errorf("option must have either label or data defined"))
+			return
+		}
 	}
 
 	var targetChannel *db.Channel = nil
@@ -128,17 +134,27 @@ func handleNewQuestion(ctx *gin.Context) {
 	markup := &telebot.ReplyMarkup{}
 	rows := make([]telebot.Row, len(req.Options))
 	for i, op := range req.Options {
-		var data []byte
-		data, err = json.Marshal(common.CallbackData{
+
+		data := op.Data
+		if data == "" {
+			data = op.Label
+		}
+		label := op.Label
+		if label == "" {
+			label = op.Data
+		}
+
+		var btnData []byte
+		btnData, err = json.Marshal(common.CallbackData{
 			RandomID: newQuestionTx.RandomID(),
-			Data:     op.Data,
+			Data:     data,
 		})
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
 		}
 
-		rows[i] = markup.Row(markup.Data(op.Label, common.CallbackIDQuestion, string(data)))
+		rows[i] = markup.Row(markup.Data(label, common.CallbackIDQuestion, string(btnData)))
 	}
 	markup.Inline(rows...)
 

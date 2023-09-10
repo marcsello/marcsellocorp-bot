@@ -52,6 +52,15 @@ func (q *NewQuestionTx) AddRelatedMessage(message StoredMessage) {
 	q.data.RelatedMessages = append(q.data.RelatedMessages, message)
 }
 
+func (q *NewQuestionTx) AddOption(data, label string) {
+	q.dataMutex.Lock()
+	defer q.dataMutex.Unlock()
+	q.data.Options = append(q.data.Options, QuestionOption{
+		Data:  data,
+		Label: label,
+	})
+}
+
 func (q *NewQuestionTx) key() string {
 	return randomIdToKey(q.randomId)
 }
@@ -144,9 +153,20 @@ func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answ
 		return nil, err
 	}
 
-	if !data.Ready {
+	if !data.Ready { // unready question does not have possible options stored either
 		// TODO: eh?
 		return nil, fmt.Errorf("question not delivered to all recipients, please wait")
+	}
+
+	var dataIsValid bool
+	for _, validOp := range data.Options {
+		if validOp.Data == answerData {
+			dataIsValid = true
+			break
+		}
+	}
+	if !dataIsValid {
+		return nil, fmt.Errorf("invalid answerData")
 	}
 
 	data.AnswererID = &answererID

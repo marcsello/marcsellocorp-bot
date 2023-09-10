@@ -147,6 +147,8 @@ func handleNewQuestion(ctx *gin.Context) {
 	rows := make([]telebot.Row, len(req.Options))
 	for i, op := range req.Options {
 
+		newQuestionTx.AddOption(op.Data, op.Label) // store the original label in redis
+
 		label := op.Label
 		if label == "" {
 			label = op.Data

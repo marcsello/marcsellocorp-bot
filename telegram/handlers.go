@@ -167,9 +167,19 @@ func handleCallback(ctx telebot.Context) error {
 		username = ctx.Sender().FirstName
 	}
 
-	answerLabel := ctx.Text()
+	// Get the original label, or data if not set...
+	answerLabel := ""
+	for _, op := range questionData.Options {
+		if op.Data == cd.Data {
+			answerLabel = op.Label
+			if answerLabel == "" {
+				answerLabel = op.Data
+			}
+			break
+		}
+	}
 
-	replyMsg := fmt.Sprintf("Answered by %s:\n%s", username, answerLabel)
+	replyMsg := fmt.Sprintf("Answered by %s:\n\n%s", username, answerLabel)
 
 	for _, sMsg := range questionData.RelatedMessages {
 		var msg *telebot.Message

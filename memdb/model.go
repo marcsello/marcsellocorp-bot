@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type QuestionOption struct {
+	Data  string `json:"d"`
+	Label string `json:"l,omitempty"`
+}
+
 type StoredMessage struct {
 	MessageID int   `json:"m"`
 	ChatID    int64 `json:"c"`
@@ -21,7 +26,8 @@ type QuestionData struct { // should be stored short-term only, the place for in
 
 	RelatedMessages []StoredMessage `json:"m"` // so they can all be deleted at once
 
-	SourceTokenID uint `json:"s"`
+	SourceTokenID uint             `json:"s"`
+	Options       []QuestionOption `json:"o"`
 
 	Ready bool `json:"r"`
 }

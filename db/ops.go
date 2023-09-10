@@ -88,7 +88,7 @@ func GetAndUpdateTokenByHash(tokenHashBytes []byte) (*Token, error) {
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// fetch allowed ch as well
 
-		result := tx.Preload("Subscribers").Where("token_hash = ?", tokenHashBytes).First(&token)
+		result := tx.Preload("AllowedChannels").Where("token_hash = ?", tokenHashBytes).First(&token)
 		if result.Error != nil {
 			return result.Error
 		}

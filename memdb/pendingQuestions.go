@@ -11,8 +11,8 @@ import (
 
 const (
 	questionKeyPrefix = "QST:"
-	inflightExpire    = 300  // un-closed entries will automatically disappear
-	answeredExpire    = 7200 // store data about answered questions for this long
+	inflightExpire    = 300 * time.Second // un-closed entries will automatically disappear
+	answeredExpire    = 2 * time.Hour     // store data about answered questions for this long
 )
 
 type NewQuestionTx struct {

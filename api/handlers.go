@@ -30,6 +30,10 @@ func handleNotify(ctx *gin.Context) {
 		handleUserError(ctx, err)
 		return
 	}
+	if req.Text == "" {
+		handleUserError(ctx, fmt.Errorf("text may not be empty"))
+		return
+	}
 
 	var targetChannel *db.Channel = nil
 
@@ -81,6 +85,14 @@ func handleNewQuestion(ctx *gin.Context) {
 	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
 		handleUserError(ctx, err)
+		return
+	}
+	if len(req.Options) == 0 {
+		handleUserError(ctx, fmt.Errorf("no questions provided"))
+		return
+	}
+	if req.Text == "" {
+		handleUserError(ctx, fmt.Errorf("text may not be empty"))
 		return
 	}
 

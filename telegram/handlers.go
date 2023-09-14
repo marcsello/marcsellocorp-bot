@@ -282,7 +282,7 @@ func cmdMakeToken(ctx telebot.Context) error {
 		}
 		return err
 	}
-	message := fmt.Sprintf("<b>New token created!</b>\n<b>Name:</b> %s\n<b>token:</b><pre>%s</pre>\n\n<i>Keep this token a secret, delete this message if possible!</i>", tName, newTokenStr)
+	message := fmt.Sprintf("<b>New token created!</b>\n<b>Name</b>: %s\n<b>Token</b>: <pre>%s</pre>\n\n<i>Keep this token a secret, delete this message if possible!</i>", tName, newTokenStr)
 
 	log.Println("BOT: Token created: ", ctx.Sender().ID, " -- t:", tName)
 	return ctx.Reply(message, telebot.ModeHTML)

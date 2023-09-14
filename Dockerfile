@@ -3,7 +3,7 @@ FROM golang:1.21-alpine3.18 as builder
 COPY . /src/
 WORKDIR /src
 
-RUN apk add --no-cache make=4.3-r1 && make -j "$(nproc)"
+RUN apk add --no-cache make=4.4.1-r1 && make -j "$(nproc)"
 
 FROM alpine:3.18
 

@@ -1,11 +1,11 @@
-FROM golang:1.19-alpine3.17 as builder
+FROM golang:1.21-alpine3.18 as builder
 
 COPY . /src/
 WORKDIR /src
 
 RUN apk add --no-cache make=4.3-r1 && make -j "$(nproc)"
 
-FROM alpine:3.17
+FROM alpine:3.18
 
 # hadolint ignore=DL3018
 RUN apk add --no-cache ca-certificates

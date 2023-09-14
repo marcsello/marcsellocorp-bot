@@ -2,10 +2,13 @@ package telegram
 
 import (
 	"errors"
+	"fmt"
 	"github.com/marcsello/marcsellocorp-bot/db"
 	"gopkg.in/telebot.v3"
 	"gorm.io/gorm"
 )
+
+const insufficentPermissionMessage = "You may not use this command"
 
 func privateOnlyMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
 	return func(ctx telebot.Context) error {
@@ -32,10 +35,23 @@ func knownSenderOnlyMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
 		}
 
 		if (user == nil) || (!user.IsActive()) {
-			return ctx.Reply("You may not use this command", telebot.ModeDefault)
+			return ctx.Reply(insufficentPermissionMessage, telebot.ModeDefault)
 		} else {
 			ctx.Set("user", user)
 			return next(ctx)
 		}
+	}
+}
+
+func adminOnlyMiddleware(next telebot.HandlerFunc) telebot.HandlerFunc {
+	return func(ctx telebot.Context) error {
+		user := getUserFromContext(ctx)
+		if user == nil {
+			return fmt.Errorf("could not get user")
+		}
+		if !user.IsAdmin() {
+			return ctx.Reply(insufficentPermissionMessage, telebot.ModeDefault)
+		}
+		return next(ctx)
 	}
 }

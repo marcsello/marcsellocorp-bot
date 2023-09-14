@@ -10,7 +10,10 @@ type Channel struct {
 	gorm.Model
 	Name string `json:"name" gorm:"type:varchar(48) not null;unique"`
 
-	Subscribers []*User `gorm:"many2many:subscriptions;"`
+	Subscribers []*User `gorm:"many2many:subscriptions;constraint:OnDelete:CASCADE;"`
+
+	CreatorID int64
+	Creator   *User `gorm:"belongsTo:User"`
 }
 
 type User struct {
@@ -22,12 +25,17 @@ type User struct {
 	PhotoUrl  string `json:"photo_url" gorm:"type:varchar(128)"`
 
 	Active *bool `json:"active" gorm:"default:false"`
+	Admin  *bool `json:"admin" gorm:"default:false"`
 
-	Subscriptions []*Channel `gorm:"many2many:subscriptions;"`
+	Subscriptions []*Channel `gorm:"many2many:subscriptions;constraint:OnDelete:CASCADE;"`
 }
 
 func (u *User) IsActive() bool {
 	return u.Active != nil && *u.Active
+}
+
+func (u *User) IsAdmin() bool {
+	return u.Admin != nil && *u.Admin
 }
 
 // Greet returns a proper name compiled from the FirstName, LastName and Username fields
@@ -48,15 +56,15 @@ func (u *User) Greet() string {
 type Token struct {
 	gorm.Model
 
-	Name string `gorm:"type:varchar(48) not null"`
+	Name string `gorm:"type:varchar(48) not null; unique"`
 
-	LastUsed *time.Time `gorm:"not null"`
+	LastUsed *time.Time `gorm:"null"`
 
 	TokenHash []byte `json:"-" gorm:"not null; unique"`
 
-	AllowedChannels []*Channel `gorm:"many2many:token_channels;"`
+	AllowedChannels []*Channel `gorm:"many2many:token_channels;constraint:OnDelete:CASCADE;"`
 
 	// quick and dirty
-	CapNotify   bool
-	CapQuestion bool
+	CapNotify   bool `gorm:"not null;default:false"`
+	CapQuestion bool `gorm:"not null;default:false"`
 }

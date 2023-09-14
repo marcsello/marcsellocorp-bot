@@ -25,6 +25,12 @@ func GetAllChannels() ([]Channel, error) {
 	return channels, result.Error
 }
 
+func GetAllTokens() ([]Token, error) {
+	var tokens []Token
+	result := db.Preload("AllowedChannels").Omit("token_hash").Find(&tokens)
+	return tokens, result.Error
+}
+
 func GetChannelByName(name string) (*Channel, error) {
 	var channel Channel
 	result := db.Preload("Subscribers").Where("name = ?", name).First(&channel)
@@ -45,6 +51,67 @@ func GetChannelById(id uint) (*Channel, error) {
 	}
 
 	return &channel, result.Error
+}
+
+func CreateChannel(channel *Channel) (*Channel, error) {
+	result := db.Save(channel)
+
+	if result.Error != nil {
+		if isPgError(result.Error, "ERROR", "23505") { // duplicate key
+			return nil, gorm.ErrDuplicatedKey
+		}
+		return nil, result.Error
+	}
+	return channel, nil
+}
+
+func CreateToken(token *Token, allowedChannelNames []string) (*Token, error) {
+	err := db.Transaction(func(tx *gorm.DB) error {
+
+		var channels []Channel
+		result := tx.Where("name IN ?", allowedChannelNames).Find(&channels)
+		if result.RowsAffected != int64(len(allowedChannelNames)) {
+			return gorm.ErrRecordNotFound
+		}
+
+		// turn array to array of pointers... for.. some... reason that's beyond me
+		token.AllowedChannels = make([]*Channel, len(channels))
+		for i := range channels {
+			token.AllowedChannels[i] = &channels[i]
+		}
+
+		result = tx.Save(token)
+		if result.Error != nil {
+			if isPgError(result.Error, "ERROR", "23505") { // duplicate key
+				return gorm.ErrDuplicatedKey
+			}
+			return result.Error
+		}
+		return nil
+	})
+	return token, err
+}
+
+func DeleteChannelByName(name string) error {
+	result := db.Where("name = ?", name).Delete(&Channel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func DeleteTokenByName(name string) error {
+	result := db.Unscoped().Where("name = ?", name).Delete(&Token{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 func isPgError(err error, severity, code string) bool {

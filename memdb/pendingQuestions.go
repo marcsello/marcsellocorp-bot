@@ -5,14 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/marcsello/marcsellocorp-bot/utils"
+	"github.com/redis/go-redis/v9"
+	"log"
 	"sync"
 	"time"
 )
 
 const (
-	questionKeyPrefix = "QST:"
-	inflightExpire    = 300 * time.Second // un-closed entries will automatically disappear
-	answeredExpire    = 2 * time.Hour     // store data about answered questions for this long
+	questionDataKeyPrefix = "QST_"
+	questionAnswerChannel = "ANSWERED_CHAN"
+	inflightExpire        = 300 * time.Second // un-closed entries will automatically disappear
+	answeredExpire        = 2 * time.Hour     // store data about answered questions for this long
 )
 
 type NewQuestionTx struct {
@@ -23,7 +26,7 @@ type NewQuestionTx struct {
 }
 
 func randomIdToKey(randomId string) string {
-	return questionKeyPrefix + randomId
+	return questionDataKeyPrefix + randomId
 }
 
 func (q *NewQuestionTx) Close() error {
@@ -116,24 +119,79 @@ func BeginNewQuestion(ctx context.Context, sourceToken uint) (NewQuestionTx, err
 
 }
 
+func parseDataFromResult(result *redis.StringCmd) (QuestionData, error) {
+	var data QuestionData
+
+	if result.Err() != nil {
+		return data, result.Err()
+	}
+
+	var dataBytes []byte
+	var err error
+
+	dataBytes, err = result.Bytes()
+	if err != nil {
+		return data, err
+	}
+
+	err = json.Unmarshal(dataBytes, &data)
+	return data, err
+}
+
 func GetQuestionData(ctx context.Context, randomId string) (*QuestionData, error) {
 	key := randomIdToKey(randomId)
 	getResult := redisClient.Get(ctx, key)
 
-	var dataBytes []byte
 	var err error
-	dataBytes, err = getResult.Bytes()
-	if err != nil {
-		return nil, err
-	}
-
 	var data QuestionData
-	err = json.Unmarshal(dataBytes, &data)
+	data, err = parseDataFromResult(getResult)
 	if err != nil {
 		return nil, err
 	}
 
 	return &data, nil
+}
+
+func WaitForAnswer(ctx context.Context, randomId string) (*QuestionData, error) {
+	// first create the subscription
+	psClient := redisClient.Subscribe(ctx, questionAnswerChannel)
+	psChan := psClient.Channel()
+
+	defer func() {
+		err := psClient.Close()
+		if err != nil {
+			log.Println("Failed to close channel")
+		}
+	}()
+
+	// then check if maybe the question already answered (prevent race condition by doing this AFTER subscription)
+	data, err := GetQuestionData(ctx, randomId)
+	if err != nil {
+		return nil, err
+	}
+	if data.IsAnswered() {
+		return data, nil
+	}
+
+	// if not, then we can wait for it
+	for {
+		select {
+		case msg := <-psChan:
+			if msg.Payload == randomId {
+				// the question we are watching for has been answered
+				data, err = GetQuestionData(ctx, randomId)
+				if !data.IsAnswered() {
+					return nil, fmt.Errorf("bogus message")
+				}
+				return data, err
+			}
+
+		case <-ctx.Done():
+			return nil, nil
+
+		}
+	}
+
 }
 
 func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answerData string) (*QuestionData, error) {
@@ -180,5 +238,9 @@ func AnswerQuestion(ctx context.Context, randomId string, answererID int64, answ
 	}
 
 	setResult := redisClient.Set(ctx, key, dataBytes, answeredExpire)
-	return &data, setResult.Err()
+	if setResult.Err() != nil {
+		return nil, setResult.Err()
+	}
+	publishResult := redisClient.Publish(ctx, questionAnswerChannel, randomId)
+	return &data, publishResult.Err()
 }

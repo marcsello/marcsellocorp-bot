@@ -1,16 +1,21 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/marcsello/marcsellocorp-bot/common"
 	"github.com/marcsello/marcsellocorp-bot/db"
 	"github.com/marcsello/marcsellocorp-bot/memdb"
 	"github.com/marcsello/marcsellocorp-bot/telegram"
+	"github.com/redis/go-redis/v9"
 	"gopkg.in/telebot.v3"
 	"log"
 	"net/http"
+	"sync/atomic"
+	"time"
 )
 
 func handleNotify(ctx *gin.Context) {
@@ -195,6 +200,35 @@ func handleNewQuestion(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, resp)
 }
 
+func memdbAnswerToApiResponse(id string, q memdb.QuestionData) (QuestionResponse, error) {
+	var err error
+
+	resp := QuestionResponse{
+		ID:     id,
+		Answer: nil,
+	}
+
+	// Check if question is answered
+	if q.IsAnswered() {
+
+		// get answerer data from db
+		var user *db.User
+		user, err = db.GetUserById(*q.AnswererID)
+		if err != nil {
+			return resp, err
+		}
+
+		// fill answerer in response
+		resp.Answer = &QuestionAnswer{
+			Data:       *q.AnswerData,
+			AnsweredAt: *q.AnsweredAt,
+			AnsweredBy: UserToUserRepr(*user),
+		}
+	}
+	return resp, nil
+
+}
+
 func handleQuestionAnswer(ctx *gin.Context) {
 	token := getTokenFromContext(ctx)
 	if token == nil {
@@ -210,6 +244,11 @@ func handleQuestionAnswer(ctx *gin.Context) {
 
 	q, err := memdb.GetQuestionData(ctx, id)
 	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+
 		handleInternalError(ctx, err)
 		return
 	}
@@ -219,29 +258,115 @@ func handleQuestionAnswer(ctx *gin.Context) {
 		return
 	}
 
-	resp := QuestionResponse{
-		ID:     id,
-		Answer: nil,
+	var resp QuestionResponse
+	resp, err = memdbAnswerToApiResponse(id, *q)
+	if err != nil {
+		handleInternalError(ctx, err)
+		return
 	}
 
-	// Check if question is answered
-	if q.AnswerData != nil && q.AnsweredAt != nil && q.AnswererID != nil {
+	ctx.JSON(http.StatusOK, resp)
+}
 
-		// get answerer data from db
-		var user *db.User
-		user, err = db.GetUserById(*q.AnswererID)
+func handleQuestionAnswerPolling(ctx *gin.Context) {
+	token := getTokenFromContext(ctx)
+	if token == nil {
+		handleInternalError(ctx, fmt.Errorf("invalid token"))
+		return
+	}
+	if !token.CapQuestion {
+		ctx.JSON(http.StatusForbidden, gin.H{"reason": "capability disallowed"})
+		return
+	}
+
+	id := ctx.Param("id")
+
+	// we have to load the data at least once, to determine if we are allowed to read it
+	preCheckQ, err := memdb.GetQuestionData(ctx, id)
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			ctx.Status(http.StatusNotFound)
+			return
+		}
+		handleInternalError(ctx, err)
+		return
+	}
+
+	if preCheckQ == nil || preCheckQ.SourceTokenID != token.ID {
+		ctx.Status(http.StatusNotFound)
+		return
+	}
+
+	var resp QuestionResponse
+
+	// well, it looks like it's already answered...
+	if preCheckQ.IsAnswered() {
+		resp, err = memdbAnswerToApiResponse(id, *preCheckQ)
+		if err != nil {
+			handleInternalError(ctx, err)
+			return
+		}
+		ctx.JSON(http.StatusOK, resp)
+		return
+	}
+
+	// we are allowed to read it, and not answered yet, set up waiting meme
+
+	ctx2, cancel := context.WithTimeout(ctx, 120*time.Second)
+	defer cancel()
+
+	answeredQuestionChan := make(chan *memdb.QuestionData)
+	answeredQuestionErrChan := make(chan error)
+	defer close(answeredQuestionChan)
+	defer close(answeredQuestionErrChan)
+
+	connectionClosed := atomic.Bool{}
+	defer connectionClosed.Store(true)
+
+	go func() {
+		q, internalErr := memdb.WaitForAnswer(ctx2, id)
+		if connectionClosed.Load() {
+			// channels are possibly closed, or will be closed soon, don't send anything on them
+			return
+		}
+
+		if internalErr != nil {
+			answeredQuestionErrChan <- internalErr
+			return
+		}
+		answeredQuestionChan <- q
+	}()
+
+	select {
+	case q := <-answeredQuestionChan:
+
+		if q == nil { // no answer arrived
+			ctx.Status(http.StatusNoContent)
+			return
+		}
+
+		resp, err = memdbAnswerToApiResponse(id, *q)
 		if err != nil {
 			handleInternalError(ctx, err)
 			return
 		}
 
-		// fill answerer in response
-		resp.Answer = &QuestionAnswer{
-			Data:       *q.AnswerData,
-			AnsweredAt: *q.AnsweredAt,
-			AnsweredBy: UserToUserRepr(*user),
+		ctx.JSON(http.StatusOK, resp)
+		return
+
+	case err = <-answeredQuestionErrChan:
+		if errors.Is(err, redis.Nil) {
+			ctx.Status(http.StatusNotFound)
+			return
 		}
+		handleInternalError(ctx, err)
+		return
+	case <-ctx.Writer.CloseNotify():
+		// client closed request, ctx2 close is deferred
+		return
+	case <-ctx.Request.Context().Done():
+		// client closed request, ctx2 close is deferred
+		return
 	}
 
-	ctx.JSON(http.StatusOK, resp)
 }

@@ -31,3 +31,7 @@ type QuestionData struct { // should be stored short-term only, the place for in
 
 	Ready bool `json:"r"`
 }
+
+func (q QuestionData) IsAnswered() bool {
+	return q.AnswerData != nil && q.AnsweredAt != nil && q.AnswererID != nil && q.Ready
+}

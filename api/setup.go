@@ -19,6 +19,7 @@ func InitApi(debug bool) (func(), error) {
 	router.POST("/notify", handleNotify)
 	router.POST("/question", handleNewQuestion)
 	router.GET("/question/:id", handleQuestionAnswer)
+	router.GET("/question/:id/poll", handleQuestionAnswerPolling)
 
 	runFunc := func() {
 		err := router.Run(env.String("API_BIND", ":8081"))
